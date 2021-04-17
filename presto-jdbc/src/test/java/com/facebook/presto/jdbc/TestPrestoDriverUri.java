@@ -23,6 +23,7 @@ import java.sql.SQLException;
 import java.util.Properties;
 
 import static com.facebook.presto.jdbc.ConnectionProperties.DISABLE_COMPRESSION;
+import static com.facebook.presto.jdbc.ConnectionProperties.DISABLE_HTTP2;
 import static com.facebook.presto.jdbc.ConnectionProperties.EXTRA_CREDENTIALS;
 import static com.facebook.presto.jdbc.ConnectionProperties.HTTP_PROXY;
 import static com.facebook.presto.jdbc.ConnectionProperties.QUERY_INTERCEPTORS;
@@ -174,6 +175,15 @@ public class TestPrestoDriverUri
         PrestoDriverUri parameters = createDriverUri("presto://localhost:8080/blackhole?disableCompression=true");
         assertTrue(parameters.isCompressionDisabled());
         assertEquals(parameters.getProperties().getProperty(DISABLE_COMPRESSION.getKey()), "true");
+    }
+
+    @Test
+    public void testUriWithoutHttp2()
+            throws SQLException
+    {
+        PrestoDriverUri parameters = createDriverUri("presto://localhost:8080/blackhole?disableHttp2=true");
+        assertTrue(parameters.isHttp2Disabled());
+        assertEquals(parameters.getProperties().getProperty(DISABLE_HTTP2.getKey()), "true");
     }
 
     @Test
