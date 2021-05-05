@@ -19,11 +19,13 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.net.HostAndPort;
 import okhttp3.OkHttpClient;
+import okhttp3.Protocol;
 
 import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +43,7 @@ import static com.facebook.presto.client.OkHttpUtil.setupSsl;
 import static com.facebook.presto.client.OkHttpUtil.tokenAuth;
 import static com.facebook.presto.jdbc.ConnectionProperties.ACCESS_TOKEN;
 import static com.facebook.presto.jdbc.ConnectionProperties.APPLICATION_NAME_PREFIX;
+import static com.facebook.presto.jdbc.ConnectionProperties.DISABLE_HTTP2;
 import static com.facebook.presto.jdbc.ConnectionProperties.EXTRA_CREDENTIALS;
 import static com.facebook.presto.jdbc.ConnectionProperties.HTTP_PROXY;
 import static com.facebook.presto.jdbc.ConnectionProperties.KERBEROS_CONFIG_PATH;
@@ -134,6 +137,12 @@ final class PrestoDriverUri
         return APPLICATION_NAME_PREFIX.getValue(properties);
     }
 
+    public boolean isHttp2Disabled()
+            throws SQLException
+    {
+        return DISABLE_HTTP2.getValue(properties).orElse(false);
+    }
+
     public Properties getProperties()
     {
         return properties;
@@ -152,6 +161,10 @@ final class PrestoDriverUri
             setupCookieJar(builder);
             setupSocksProxy(builder, SOCKS_PROXY.getValue(properties));
             setupHttpProxy(builder, HTTP_PROXY.getValue(properties));
+
+            if (isHttp2Disabled()) {
+                builder.protocols(Collections.singletonList(Protocol.HTTP_1_1));
+            }
 
             // TODO: fix Tempto to allow empty passwords
             String password = PASSWORD.getValue(properties).orElse("");

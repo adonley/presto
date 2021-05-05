@@ -41,6 +41,7 @@ final class ConnectionProperties
     public static final ConnectionProperty<HostAndPort> SOCKS_PROXY = new SocksProxy();
     public static final ConnectionProperty<HostAndPort> HTTP_PROXY = new HttpProxy();
     public static final ConnectionProperty<String> APPLICATION_NAME_PREFIX = new ApplicationNamePrefix();
+    public static final ConnectionProperty<Boolean> DISABLE_HTTP2 = new DisableHttp2();
     public static final ConnectionProperty<Boolean> SSL = new Ssl();
     public static final ConnectionProperty<String> SSL_KEY_STORE_PATH = new SslKeyStorePath();
     public static final ConnectionProperty<String> SSL_KEY_STORE_PASSWORD = new SslKeyStorePassword();
@@ -61,6 +62,7 @@ final class ConnectionProperties
             .add(SOCKS_PROXY)
             .add(HTTP_PROXY)
             .add(APPLICATION_NAME_PREFIX)
+            .add(DISABLE_HTTP2)
             .add(SSL)
             .add(SSL_KEY_STORE_PATH)
             .add(SSL_KEY_STORE_PASSWORD)
@@ -154,6 +156,15 @@ final class ConnectionProperties
         public ApplicationNamePrefix()
         {
             super("applicationNamePrefix", NOT_REQUIRED, ALLOWED, STRING_CONVERTER);
+        }
+    }
+
+    private static class DisableHttp2
+            extends AbstractConnectionProperty<Boolean>
+    {
+        public DisableHttp2()
+        {
+            super("disableHttp2", NOT_REQUIRED, ALLOWED, BOOLEAN_CONVERTER);
         }
     }
 
