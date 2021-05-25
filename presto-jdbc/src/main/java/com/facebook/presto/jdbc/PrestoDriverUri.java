@@ -27,7 +27,6 @@ import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.sql.SQLException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -188,7 +187,7 @@ final class PrestoDriverUri
             setupHttpProxy(builder, HTTP_PROXY.getValue(properties));
 
             if (isHttp2Disabled()) {
-                builder.protocols(Collections.singletonList(Protocol.HTTP_1_1));
+                builder.protocols(ImmutableList.of(Protocol.HTTP_1_1));
             }
 
             // TODO: fix Tempto to allow empty passwords

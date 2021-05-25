@@ -189,7 +189,7 @@ public class TestPrestoDriverUri
 
     @Test
     public void testUriWithHttp2()
-        throws SQLException
+            throws SQLException
     {
         PrestoDriverUri parameters = createDriverUri("presto://localhost:8080/blackhole?disableHttp2=false");
         assertFalse(parameters.isHttp2Disabled());
