@@ -15,6 +15,7 @@ package com.facebook.presto.orc.writer;
 
 import com.facebook.presto.common.block.Block;
 import com.facebook.presto.common.type.Type;
+import com.facebook.presto.orc.ColumnWriterOptions;
 import com.facebook.presto.orc.DictionaryCompressionOptimizer.DictionaryColumn;
 import com.facebook.presto.orc.DwrfDataEncryptor;
 import com.facebook.presto.orc.OrcEncoding;
@@ -22,7 +23,6 @@ import com.facebook.presto.orc.checkpoint.BooleanStreamCheckpoint;
 import com.facebook.presto.orc.checkpoint.LongStreamCheckpoint;
 import com.facebook.presto.orc.metadata.ColumnEncoding;
 import com.facebook.presto.orc.metadata.CompressedMetadataWriter;
-import com.facebook.presto.orc.metadata.CompressionParameters;
 import com.facebook.presto.orc.metadata.MetadataWriter;
 import com.facebook.presto.orc.metadata.RowGroupIndex;
 import com.facebook.presto.orc.metadata.Stream;
@@ -63,8 +63,9 @@ public abstract class DictionaryColumnWriter
         implements ColumnWriter, DictionaryColumn
 {
     protected final int column;
+    protected final int dwrfSequence;
     protected final Type type;
-    protected final CompressionParameters compressionParameters;
+    protected final ColumnWriterOptions columnWriterOptions;
     protected final Optional<DwrfDataEncryptor> dwrfEncryptor;
     protected final OrcEncoding orcEncoding;
     protected final MetadataWriter metadataWriter;
@@ -86,29 +87,32 @@ public abstract class DictionaryColumnWriter
 
     public DictionaryColumnWriter(
             int column,
+            int dwrfSequence,
             Type type,
-            CompressionParameters compressionParameters,
+            ColumnWriterOptions columnWriterOptions,
             Optional<DwrfDataEncryptor> dwrfEncryptor,
             OrcEncoding orcEncoding,
             MetadataWriter metadataWriter)
     {
         checkArgument(column >= 0, "column is negative");
+        checkArgument(dwrfSequence >= 0, "sequence is negative");
         this.column = column;
+        this.dwrfSequence = dwrfSequence;
         this.type = requireNonNull(type, "type is null");
-        this.compressionParameters = requireNonNull(compressionParameters, "compressionParameters is null");
+        this.columnWriterOptions = requireNonNull(columnWriterOptions, "columnWriterOptions is null");
         this.dwrfEncryptor = requireNonNull(dwrfEncryptor, "dwrfEncryptor is null");
         this.orcEncoding = requireNonNull(orcEncoding, "orcEncoding is null");
         LongOutputStream result;
         if (orcEncoding == DWRF) {
-            result = new LongOutputStreamV1(compressionParameters, dwrfEncryptor, false, DATA);
+            result = new LongOutputStreamV1(columnWriterOptions, dwrfEncryptor, false, DATA);
         }
         else {
-            result = new LongOutputStreamV2(compressionParameters, false, DATA);
+            result = new LongOutputStreamV2(columnWriterOptions, false, DATA);
         }
         this.dataStream = result;
-        this.presentStream = new PresentOutputStream(compressionParameters, dwrfEncryptor);
+        this.presentStream = new PresentOutputStream(columnWriterOptions, dwrfEncryptor);
         this.metadataWriter = requireNonNull(metadataWriter, "metadataWriter is null");
-        this.compressedMetadataWriter = new CompressedMetadataWriter(metadataWriter, compressionParameters, dwrfEncryptor);
+        this.compressedMetadataWriter = new CompressedMetadataWriter(metadataWriter, columnWriterOptions, dwrfEncryptor);
         this.rowGroupIndexes = new int[10_000];
     }
 
@@ -360,12 +364,12 @@ public abstract class DictionaryColumnWriter
             ColumnStatistics columnStatistics = rowGroups.get(groupId).getColumnStatistics();
             LongStreamCheckpoint dataCheckpoint = dataCheckpoints.get(groupId);
             Optional<BooleanStreamCheckpoint> presentCheckpoint = presentCheckpoints.map(checkpoints -> checkpoints.get(groupId));
-            List<Integer> positions = createSliceColumnPositionList(compressionParameters.getKind() != NONE, dataCheckpoint, presentCheckpoint);
+            List<Integer> positions = createSliceColumnPositionList(columnWriterOptions.getCompressionKind() != NONE, dataCheckpoint, presentCheckpoint);
             rowGroupIndexes.add(new RowGroupIndex(positions, columnStatistics));
         }
 
         Slice slice = compressedMetadataWriter.writeRowIndexes(rowGroupIndexes.build());
-        Stream stream = new Stream(column, StreamKind.ROW_INDEX, slice.length(), false);
+        Stream stream = new Stream(column, dwrfSequence, StreamKind.ROW_INDEX, slice.length(), false);
         return ImmutableList.of(new StreamDataOutput(slice, stream));
     }
 
@@ -390,8 +394,8 @@ public abstract class DictionaryColumnWriter
 
         // actually write data
         ImmutableList.Builder<StreamDataOutput> outputDataStreams = ImmutableList.builder();
-        presentStream.getStreamDataOutput(column).ifPresent(outputDataStreams::add);
-        outputDataStreams.add(dataStream.getStreamDataOutput(column));
+        presentStream.getStreamDataOutput(column, dwrfSequence).ifPresent(outputDataStreams::add);
+        outputDataStreams.add(dataStream.getStreamDataOutput(column, dwrfSequence));
         outputDataStreams.addAll(getDictionaryStreams(column));
         return outputDataStreams.build();
     }

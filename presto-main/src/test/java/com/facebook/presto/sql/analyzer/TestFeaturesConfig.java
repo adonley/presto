@@ -96,6 +96,7 @@ public class TestFeaturesConfig
                 .setMemoryRevokingThreshold(0.9)
                 .setMemoryRevokingTarget(0.5)
                 .setTaskSpillingStrategy(ORDER_BY_CREATE_TIME)
+                .setQueryLimitSpillEnabled(false)
                 .setSingleStreamSpillerChoice(SingleStreamSpillerChoice.LOCAL_FILE)
                 .setSpillerTempStorage("local")
                 .setMaxRevocableMemoryPerTask(new DataSize(500, MEGABYTE))
@@ -157,10 +158,14 @@ public class TestFeaturesConfig
                 .setAllowWindowOrderByLiterals(true)
                 .setEnforceFixedDistributionForOutputOperator(false)
                 .setEmptyJoinOptimization(false)
+                .setLogFormattedQueryEnabled(false)
                 .setSpoolingOutputBufferEnabled(false)
                 .setSpoolingOutputBufferThreshold(new DataSize(8, MEGABYTE))
                 .setSpoolingOutputBufferTempStorage("local")
-                .setPrestoSparkAssignBucketToPartitionForPartitionedTableWriteEnabled(false));
+                .setPrestoSparkAssignBucketToPartitionForPartitionedTableWriteEnabled(false)
+                .setPartialResultsEnabled(false)
+                .setPartialResultsCompletionRatioThreshold(0.5)
+                .setPartialResultsMaxExecutionTimeMultiplier(2.0));
     }
 
     @Test
@@ -227,6 +232,7 @@ public class TestFeaturesConfig
                 .put("experimental.memory-revoking-threshold", "0.2")
                 .put("experimental.memory-revoking-target", "0.8")
                 .put("experimental.spiller.task-spilling-strategy", "PER_TASK_MEMORY_THRESHOLD")
+                .put("experimental.query-limit-spill-enabled", "true")
                 .put("experimental.spiller.single-stream-spiller-choice", "TEMP_STORAGE")
                 .put("experimental.spiller.spiller-temp-storage", "crail")
                 .put("experimental.spiller.max-revocable-task-memory", "1GB")
@@ -270,10 +276,14 @@ public class TestFeaturesConfig
                 .put("is-allow-window-order-by-literals", "false")
                 .put("enforce-fixed-distribution-for-output-operator", "true")
                 .put("optimizer.optimize-joins-with-empty-sources", "true")
+                .put("log-formatted-query-enabled", "true")
                 .put("spooling-output-buffer-enabled", "true")
                 .put("spooling-output-buffer-threshold", "16MB")
                 .put("spooling-output-buffer-temp-storage", "tempfs")
                 .put("spark.assign-bucket-to-partition-for-partitioned-table-write-enabled", "true")
+                .put("partial-results-enabled", "true")
+                .put("partial-results-completion-ratio-threshold", "0.9")
+                .put("partial-results-max-execution-time-multiplier", "1.5")
                 .build();
 
         FeaturesConfig expected = new FeaturesConfig()
@@ -332,6 +342,7 @@ public class TestFeaturesConfig
                 .setMemoryRevokingThreshold(0.2)
                 .setMemoryRevokingTarget(0.8)
                 .setTaskSpillingStrategy(PER_TASK_MEMORY_THRESHOLD)
+                .setQueryLimitSpillEnabled(true)
                 .setSingleStreamSpillerChoice(SingleStreamSpillerChoice.TEMP_STORAGE)
                 .setSpillerTempStorage("crail")
                 .setMaxRevocableMemoryPerTask(new DataSize(1, GIGABYTE))
@@ -381,10 +392,14 @@ public class TestFeaturesConfig
                 .setAllowWindowOrderByLiterals(false)
                 .setEnforceFixedDistributionForOutputOperator(true)
                 .setEmptyJoinOptimization(true)
+                .setLogFormattedQueryEnabled(true)
                 .setSpoolingOutputBufferEnabled(true)
                 .setSpoolingOutputBufferThreshold(new DataSize(16, MEGABYTE))
                 .setSpoolingOutputBufferTempStorage("tempfs")
-                .setPrestoSparkAssignBucketToPartitionForPartitionedTableWriteEnabled(true);
+                .setPrestoSparkAssignBucketToPartitionForPartitionedTableWriteEnabled(true)
+                .setPartialResultsEnabled(true)
+                .setPartialResultsCompletionRatioThreshold(0.9)
+                .setPartialResultsMaxExecutionTimeMultiplier(1.5);
         assertFullMapping(properties, expected);
     }
 

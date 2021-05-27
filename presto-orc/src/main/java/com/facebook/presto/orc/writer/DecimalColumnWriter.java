@@ -17,13 +17,13 @@ import com.facebook.presto.common.block.Block;
 import com.facebook.presto.common.type.DecimalType;
 import com.facebook.presto.common.type.Decimals;
 import com.facebook.presto.common.type.Type;
+import com.facebook.presto.orc.ColumnWriterOptions;
 import com.facebook.presto.orc.OrcEncoding;
 import com.facebook.presto.orc.checkpoint.BooleanStreamCheckpoint;
 import com.facebook.presto.orc.checkpoint.DecimalStreamCheckpoint;
 import com.facebook.presto.orc.checkpoint.LongStreamCheckpoint;
 import com.facebook.presto.orc.metadata.ColumnEncoding;
 import com.facebook.presto.orc.metadata.CompressedMetadataWriter;
-import com.facebook.presto.orc.metadata.CompressionParameters;
 import com.facebook.presto.orc.metadata.MetadataWriter;
 import com.facebook.presto.orc.metadata.RowGroupIndex;
 import com.facebook.presto.orc.metadata.Stream;
@@ -61,6 +61,7 @@ public class DecimalColumnWriter
 {
     private static final int INSTANCE_SIZE = ClassLayout.parseClass(DecimalColumnWriter.class).instanceSize();
     private final int column;
+    private final int dwrfSequence;
     private final DecimalType type;
     private final ColumnEncoding columnEncoding;
     private final boolean compressed;
@@ -77,20 +78,22 @@ public class DecimalColumnWriter
 
     private boolean closed;
 
-    public DecimalColumnWriter(int column, Type type, CompressionParameters compressionParameters, OrcEncoding orcEncoding, MetadataWriter metadataWriter)
+    public DecimalColumnWriter(int column, int dwrfSequence, Type type, ColumnWriterOptions columnWriterOptions, OrcEncoding orcEncoding, MetadataWriter metadataWriter)
     {
         checkArgument(column >= 0, "column is negative");
-        requireNonNull(compressionParameters, "compressionParameters is null");
+        checkArgument(dwrfSequence >= 0, "sequence is negative");
+        requireNonNull(columnWriterOptions, "columnWriterOptions is null");
         checkArgument(orcEncoding != DWRF, "DWRF does not support %s type", type);
         requireNonNull(metadataWriter, "metadataWriter is null");
         this.column = column;
+        this.dwrfSequence = dwrfSequence;
         this.type = (DecimalType) requireNonNull(type, "type is null");
-        this.compressed = compressionParameters.getKind() != NONE;
+        this.compressed = columnWriterOptions.getCompressionKind() != NONE;
         this.columnEncoding = new ColumnEncoding(DIRECT_V2, 0);
-        this.dataStream = new DecimalOutputStream(compressionParameters);
-        this.scaleStream = new LongOutputStreamV2(compressionParameters, true, SECONDARY);
-        this.presentStream = new PresentOutputStream(compressionParameters, Optional.empty());
-        this.metadataWriter = new CompressedMetadataWriter(metadataWriter, compressionParameters, Optional.empty());
+        this.dataStream = new DecimalOutputStream(columnWriterOptions);
+        this.scaleStream = new LongOutputStreamV2(columnWriterOptions, true, SECONDARY);
+        this.presentStream = new PresentOutputStream(columnWriterOptions, Optional.empty());
+        this.metadataWriter = new CompressedMetadataWriter(metadataWriter, columnWriterOptions, Optional.empty());
         if (this.type.isShort()) {
             shortDecimalStatisticsBuilder = new ShortDecimalStatisticsBuilder(this.type.getScale());
         }
@@ -208,7 +211,7 @@ public class DecimalColumnWriter
         }
 
         Slice slice = metadataWriter.writeRowIndexes(rowGroupIndexes.build());
-        Stream stream = new Stream(column, StreamKind.ROW_INDEX, slice.length(), false);
+        Stream stream = new Stream(column, dwrfSequence, StreamKind.ROW_INDEX, slice.length(), false);
         return ImmutableList.of(new StreamDataOutput(slice, stream));
     }
 
@@ -231,9 +234,9 @@ public class DecimalColumnWriter
         checkState(closed);
 
         ImmutableList.Builder<StreamDataOutput> outputDataStreams = ImmutableList.builder();
-        presentStream.getStreamDataOutput(column).ifPresent(outputDataStreams::add);
-        outputDataStreams.add(dataStream.getStreamDataOutput(column));
-        outputDataStreams.add(scaleStream.getStreamDataOutput(column));
+        presentStream.getStreamDataOutput(column, dwrfSequence).ifPresent(outputDataStreams::add);
+        outputDataStreams.add(dataStream.getStreamDataOutput(column, dwrfSequence));
+        outputDataStreams.add(scaleStream.getStreamDataOutput(column, dwrfSequence));
         return outputDataStreams.build();
     }
 

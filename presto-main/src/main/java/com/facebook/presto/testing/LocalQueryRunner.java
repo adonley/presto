@@ -41,6 +41,7 @@ import com.facebook.presto.cost.ScalarStatsCalculator;
 import com.facebook.presto.cost.StatsCalculator;
 import com.facebook.presto.cost.StatsNormalizer;
 import com.facebook.presto.cost.TaskCountEstimator;
+import com.facebook.presto.dispatcher.QueryPrerequisitesManager;
 import com.facebook.presto.eventlistener.EventListenerManager;
 import com.facebook.presto.execution.AlterFunctionTask;
 import com.facebook.presto.execution.CommitTask;
@@ -357,7 +358,8 @@ public class LocalQueryRunner
                                 featuresConfig,
                                 new NodeMemoryConfig(),
                                 new WarningCollectorConfig(),
-                                new NodeSchedulerConfig())),
+                                new NodeSchedulerConfig(),
+                                new NodeSpillConfig())),
                 new SchemaPropertyManager(),
                 new TablePropertyManager(),
                 new ColumnPropertyManager(),
@@ -429,6 +431,7 @@ public class LocalQueryRunner
                 new EventListenerManager(),
                 blockEncodingManager,
                 new TestingTempStorageManager(),
+                new QueryPrerequisitesManager(),
                 new SessionPropertyDefaults(nodeInfo));
 
         connectorManager.addConnectorFactory(globalSystemConnectorFactory);
@@ -794,6 +797,7 @@ public class LocalQueryRunner
                 joinFilterFunctionCompiler,
                 new IndexJoinLookupStats(),
                 new TaskManagerConfig().setTaskConcurrency(4),
+                new MemoryManagerConfig(),
                 spillerFactory,
                 singleStreamSpillerFactory,
                 partitioningSpillerFactory,

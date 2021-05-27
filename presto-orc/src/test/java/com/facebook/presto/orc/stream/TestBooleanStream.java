@@ -14,10 +14,8 @@
 package com.facebook.presto.orc.stream;
 
 import com.facebook.presto.orc.OrcCorruptionException;
-import com.facebook.presto.orc.OrcDecompressor;
 import com.facebook.presto.orc.TestingHiveOrcAggregatedMemoryContext;
 import com.facebook.presto.orc.checkpoint.BooleanStreamCheckpoint;
-import com.facebook.presto.orc.metadata.CompressionParameters;
 import com.facebook.presto.orc.metadata.Stream;
 import com.facebook.presto.orc.metadata.Stream.StreamKind;
 import io.airlift.slice.DynamicSliceOutput;
@@ -31,10 +29,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.OptionalInt;
 
-import static com.facebook.presto.orc.OrcDecompressor.createOrcDecompressor;
-import static com.facebook.presto.orc.metadata.CompressionKind.SNAPPY;
+import static com.facebook.presto.orc.metadata.ColumnEncoding.DEFAULT_SEQUENCE_ID;
 import static org.testng.Assert.assertEquals;
 
 public class TestBooleanStream
@@ -151,11 +147,7 @@ public class TestBooleanStream
     @Override
     protected BooleanOutputStream createValueOutputStream()
     {
-        CompressionParameters compressionParameters = new CompressionParameters(
-                SNAPPY,
-                OptionalInt.empty(),
-                COMPRESSION_BLOCK_SIZE);
-        return new BooleanOutputStream(compressionParameters, Optional.empty());
+        return new BooleanOutputStream(getColumnWriterOptions(), Optional.empty());
     }
 
     @Override
@@ -168,13 +160,12 @@ public class TestBooleanStream
     protected BooleanInputStream createValueStream(Slice slice)
             throws OrcCorruptionException
     {
-        Optional<OrcDecompressor> orcDecompressor = createOrcDecompressor(ORC_DATA_SOURCE_ID, SNAPPY, COMPRESSION_BLOCK_SIZE);
         TestingHiveOrcAggregatedMemoryContext aggregatedMemoryContext = new TestingHiveOrcAggregatedMemoryContext();
         return new BooleanInputStream(new OrcInputStream(
                 ORC_DATA_SOURCE_ID,
                 new SharedBuffer(aggregatedMemoryContext.newOrcLocalMemoryContext("sharedDecompressionBuffer")),
                 slice.getInput(),
-                orcDecompressor,
+                getOrcDecompressor(),
                 Optional.empty(),
                 aggregatedMemoryContext,
                 slice.getRetainedSize()));
@@ -191,7 +182,7 @@ public class TestBooleanStream
             throws OrcCorruptionException
     {
         DynamicSliceOutput sliceOutput = new DynamicSliceOutput(1000);
-        StreamDataOutput streamDataOutput = outputStream.getStreamDataOutput(33);
+        StreamDataOutput streamDataOutput = outputStream.getStreamDataOutput(33, DEFAULT_SEQUENCE_ID);
         streamDataOutput.writeData(sliceOutput);
         Stream stream = streamDataOutput.getStream();
         assertEquals(stream.getStreamKind(), StreamKind.DATA);

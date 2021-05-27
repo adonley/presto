@@ -15,13 +15,13 @@ package com.facebook.presto.orc.writer;
 
 import com.facebook.presto.common.block.Block;
 import com.facebook.presto.common.block.ColumnarMap;
+import com.facebook.presto.orc.ColumnWriterOptions;
 import com.facebook.presto.orc.DwrfDataEncryptor;
 import com.facebook.presto.orc.OrcEncoding;
 import com.facebook.presto.orc.checkpoint.BooleanStreamCheckpoint;
 import com.facebook.presto.orc.checkpoint.LongStreamCheckpoint;
 import com.facebook.presto.orc.metadata.ColumnEncoding;
 import com.facebook.presto.orc.metadata.CompressedMetadataWriter;
-import com.facebook.presto.orc.metadata.CompressionParameters;
 import com.facebook.presto.orc.metadata.MetadataWriter;
 import com.facebook.presto.orc.metadata.RowGroupIndex;
 import com.facebook.presto.orc.metadata.Stream;
@@ -56,6 +56,7 @@ public class MapColumnWriter
 {
     private static final int INSTANCE_SIZE = ClassLayout.parseClass(MapColumnWriter.class).instanceSize();
     private final int column;
+    private final int dwrfSequence;
     private final boolean compressed;
     private final ColumnEncoding columnEncoding;
     private final LongOutputStream lengthStream;
@@ -71,18 +72,20 @@ public class MapColumnWriter
 
     private boolean closed;
 
-    public MapColumnWriter(int column, CompressionParameters compressionParameters, Optional<DwrfDataEncryptor> dwrfEncryptor, OrcEncoding orcEncoding, ColumnWriter keyWriter, ColumnWriter valueWriter, MetadataWriter metadataWriter)
+    public MapColumnWriter(int column, int dwrfSequence, ColumnWriterOptions columnWriterOptions, Optional<DwrfDataEncryptor> dwrfEncryptor, OrcEncoding orcEncoding, ColumnWriter keyWriter, ColumnWriter valueWriter, MetadataWriter metadataWriter)
     {
         checkArgument(column >= 0, "column is negative");
-        requireNonNull(compressionParameters, "compressionParameters is null");
+        checkArgument(dwrfSequence >= 0, "sequence is negative");
+        requireNonNull(columnWriterOptions, "columnWriterOptions is null");
         this.column = column;
-        this.compressed = compressionParameters.getKind() != NONE;
+        this.dwrfSequence = dwrfSequence;
+        this.compressed = columnWriterOptions.getCompressionKind() != NONE;
         this.columnEncoding = new ColumnEncoding(orcEncoding == DWRF ? DIRECT : DIRECT_V2, 0);
         this.keyWriter = requireNonNull(keyWriter, "keyWriter is null");
         this.valueWriter = requireNonNull(valueWriter, "valueWriter is null");
-        this.lengthStream = createLengthOutputStream(compressionParameters, dwrfEncryptor, orcEncoding);
-        this.presentStream = new PresentOutputStream(compressionParameters, dwrfEncryptor);
-        this.metadataWriter = new CompressedMetadataWriter(metadataWriter, compressionParameters, dwrfEncryptor);
+        this.lengthStream = createLengthOutputStream(columnWriterOptions, dwrfEncryptor, orcEncoding);
+        this.presentStream = new PresentOutputStream(columnWriterOptions, dwrfEncryptor);
+        this.metadataWriter = new CompressedMetadataWriter(metadataWriter, columnWriterOptions, dwrfEncryptor);
     }
 
     @Override
@@ -204,7 +207,7 @@ public class MapColumnWriter
         }
 
         Slice slice = metadataWriter.writeRowIndexes(rowGroupIndexes.build());
-        Stream stream = new Stream(column, StreamKind.ROW_INDEX, slice.length(), false);
+        Stream stream = new Stream(column, dwrfSequence, StreamKind.ROW_INDEX, slice.length(), false);
 
         ImmutableList.Builder<StreamDataOutput> indexStreams = ImmutableList.builder();
         indexStreams.add(new StreamDataOutput(slice, stream));
@@ -230,8 +233,8 @@ public class MapColumnWriter
         checkState(closed);
 
         ImmutableList.Builder<StreamDataOutput> outputDataStreams = ImmutableList.builder();
-        presentStream.getStreamDataOutput(column).ifPresent(outputDataStreams::add);
-        outputDataStreams.add(lengthStream.getStreamDataOutput(column));
+        presentStream.getStreamDataOutput(column, dwrfSequence).ifPresent(outputDataStreams::add);
+        outputDataStreams.add(lengthStream.getStreamDataOutput(column, dwrfSequence));
         outputDataStreams.addAll(keyWriter.getDataStreams());
         outputDataStreams.addAll(valueWriter.getDataStreams());
         return outputDataStreams.build();

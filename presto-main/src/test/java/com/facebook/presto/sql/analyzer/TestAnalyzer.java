@@ -25,6 +25,7 @@ import com.facebook.presto.metadata.SessionPropertyManager;
 import com.facebook.presto.spi.PrestoWarning;
 import com.facebook.presto.spi.StandardWarningCode;
 import com.facebook.presto.spi.WarningCollector;
+import com.facebook.presto.spiller.NodeSpillConfig;
 import org.testng.annotations.Test;
 
 import java.util.List;
@@ -133,7 +134,8 @@ public class TestAnalyzer
                 PERFORMANCE_WARNING, "line 1:59: JOIN conditions with an OR can cause performance issues as it may lead to a cross join with filter");
     }
 
-    @Test void testNoORWarning()
+    @Test
+    void testNoORWarning()
     {
         assertNoWarning(analyzeWithWarnings("SELECT * FROM t1 JOIN t2 ON t1.a = t2.a"));
         assertNoWarning(analyzeWithWarnings("SELECT * FROM t1 JOIN t2 ON t1.a = t2.a AND t1.b = t2.b"));
@@ -158,7 +160,8 @@ public class TestAnalyzer
                 new FeaturesConfig().setAllowWindowOrderByLiterals(false),
                 new NodeMemoryConfig(),
                 new WarningCollectorConfig(),
-                new NodeSchedulerConfig()))).build();
+                new NodeSchedulerConfig(),
+                new NodeSpillConfig()))).build();
         assertFails(session, WINDOW_FUNCTION_ORDERBY_LITERAL,
                 "SELECT SUM(x) OVER (PARTITION BY y ORDER BY 1) AS s\n" +
                         "FROM (values (1,10), (2, 10)) AS T(x, y)");
@@ -167,7 +170,7 @@ public class TestAnalyzer
                         "FROM (values (1,10), (2, 10)) AS T(x, y)");
 
         analyze(session, "SELECT SUM(x) OVER (PARTITION BY y ORDER BY y) AS s\n" +
-                        "FROM (values (1,10), (2, 10)) AS T(x, y)");
+                "FROM (values (1,10), (2, 10)) AS T(x, y)");
     }
 
     @Test
@@ -543,7 +546,8 @@ public class TestAnalyzer
                 new FeaturesConfig().setMaxGroupingSets(2048),
                 new NodeMemoryConfig(),
                 new WarningCollectorConfig(),
-                new NodeSchedulerConfig()))).build();
+                new NodeSchedulerConfig(),
+                new NodeSpillConfig()))).build();
         analyze(session, "SELECT a, b, c, d, e, f, g, h, i, j, k, SUM(l)" +
                 "FROM (VALUES (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12))\n" +
                 "t (a, b, c, d, e, f, g, h, i, j, k, l)\n" +
@@ -831,6 +835,26 @@ public class TestAnalyzer
         assertFails(MISMATCHED_SET_COLUMN_TYPES,
                 "line 1:40: Insert query has 3 expression.s. but expected 4 target column.s.. Mismatch at column 2: 'b' is of type varchar but expression is of type integer",
                 "INSERT INTO t6 (a, b, c, d) VALUES (1, 1, 1)");
+    }
+
+    @Test
+    public void testInvalidInsertNested()
+    {
+        assertFails(MISMATCHED_SET_COLUMN_TYPES,
+                "line 1:29: Mismatch at column 2: 'b.x.z' is of type double but expression is of type varchar.3.",
+                "INSERT INTO t10 VALUES (10, ROW(20, ROW(30, 'abc')), ROW(40))");
+
+        assertFails(MISMATCHED_SET_COLUMN_TYPES,
+                "line 1:29: Mismatch at column 2: 'b.x' has 2 field.s. but expression has 3 field.s.",
+                "INSERT INTO t10 VALUES (10, ROW(20, ROW(30, 3, 10)), ROW(40))");
+
+        assertFails(MISMATCHED_SET_COLUMN_TYPES,
+                "line 1:29: Mismatch at column 2: 'b.w' is of type bigint but expression is of type varchar.3.",
+                "INSERT INTO t10 VALUES (10, ROW('abc', ROW(30, 40)), ROW(40))");
+
+        assertFails(MISMATCHED_SET_COLUMN_TYPES,
+                "line 1:51: Mismatch at column 3: 'c.d' is of type bigint but expression is of type varchar.3.",
+                "INSERT INTO t10 VALUES (10, ROW(20, ROW(30, 40)), ROW('abc'))");
     }
 
     @Test

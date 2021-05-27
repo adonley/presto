@@ -13,10 +13,10 @@
  */
 package com.facebook.presto.orc.stream;
 
+import com.facebook.presto.orc.ColumnWriterOptions;
 import com.facebook.presto.orc.DwrfDataEncryptor;
 import com.facebook.presto.orc.OrcOutputBuffer;
 import com.facebook.presto.orc.checkpoint.ByteStreamCheckpoint;
-import com.facebook.presto.orc.metadata.CompressionParameters;
 import com.facebook.presto.orc.metadata.Stream;
 import com.google.common.collect.ImmutableList;
 import io.airlift.slice.SizeOf;
@@ -50,9 +50,9 @@ public class ByteOutputStream
 
     private boolean closed;
 
-    public ByteOutputStream(CompressionParameters compressionParameters, Optional<DwrfDataEncryptor> dwrfEncryptor)
+    public ByteOutputStream(ColumnWriterOptions columnWriterOptions, Optional<DwrfDataEncryptor> dwrfEncryptor)
     {
-        this(new OrcOutputBuffer(compressionParameters, dwrfEncryptor));
+        this(new OrcOutputBuffer(columnWriterOptions, dwrfEncryptor));
     }
 
     public ByteOutputStream(OrcOutputBuffer buffer)
@@ -149,9 +149,9 @@ public class ByteOutputStream
     }
 
     @Override
-    public StreamDataOutput getStreamDataOutput(int column)
+    public StreamDataOutput getStreamDataOutput(int column, int dwrfSequence)
     {
-        return new StreamDataOutput(buffer::writeDataTo, new Stream(column, DATA, toIntExact(buffer.getOutputDataSize()), false));
+        return new StreamDataOutput(buffer::writeDataTo, new Stream(column, dwrfSequence, DATA, toIntExact(buffer.getOutputDataSize()), false));
     }
 
     @Override

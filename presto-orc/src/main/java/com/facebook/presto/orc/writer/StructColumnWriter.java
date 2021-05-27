@@ -15,11 +15,11 @@ package com.facebook.presto.orc.writer;
 
 import com.facebook.presto.common.block.Block;
 import com.facebook.presto.common.block.ColumnarRow;
+import com.facebook.presto.orc.ColumnWriterOptions;
 import com.facebook.presto.orc.DwrfDataEncryptor;
 import com.facebook.presto.orc.checkpoint.BooleanStreamCheckpoint;
 import com.facebook.presto.orc.metadata.ColumnEncoding;
 import com.facebook.presto.orc.metadata.CompressedMetadataWriter;
-import com.facebook.presto.orc.metadata.CompressionParameters;
 import com.facebook.presto.orc.metadata.MetadataWriter;
 import com.facebook.presto.orc.metadata.RowGroupIndex;
 import com.facebook.presto.orc.metadata.Stream;
@@ -52,6 +52,7 @@ public class StructColumnWriter
     private static final ColumnEncoding COLUMN_ENCODING = new ColumnEncoding(DIRECT, 0);
 
     private final int column;
+    private final int dwrfSequence;
     private final boolean compressed;
     private final PresentOutputStream presentStream;
     private final CompressedMetadataWriter metadataWriter;
@@ -64,15 +65,17 @@ public class StructColumnWriter
 
     private boolean closed;
 
-    public StructColumnWriter(int column, CompressionParameters compressionParameters, Optional<DwrfDataEncryptor> dwrfEncryptor, List<ColumnWriter> structFields, MetadataWriter metadataWriter)
+    public StructColumnWriter(int column, int dwrfSequence, ColumnWriterOptions columnWriterOptions, Optional<DwrfDataEncryptor> dwrfEncryptor, List<ColumnWriter> structFields, MetadataWriter metadataWriter)
     {
         checkArgument(column >= 0, "column is negative");
-        requireNonNull(compressionParameters, "compressionParameters is null");
+        checkArgument(dwrfSequence >= 0, "sequence is negative");
+        requireNonNull(columnWriterOptions, "columnWriterOptions is null");
         this.column = column;
-        this.compressed = compressionParameters.getKind() != NONE;
+        this.dwrfSequence = dwrfSequence;
+        this.compressed = columnWriterOptions.getCompressionKind() != NONE;
         this.structFields = ImmutableList.copyOf(requireNonNull(structFields, "structFields is null"));
-        this.presentStream = new PresentOutputStream(compressionParameters, dwrfEncryptor);
-        this.metadataWriter = new CompressedMetadataWriter(metadataWriter, compressionParameters, dwrfEncryptor);
+        this.presentStream = new PresentOutputStream(columnWriterOptions, dwrfEncryptor);
+        this.metadataWriter = new CompressedMetadataWriter(metadataWriter, columnWriterOptions, dwrfEncryptor);
     }
 
     @Override
@@ -192,7 +195,7 @@ public class StructColumnWriter
         }
 
         Slice slice = metadataWriter.writeRowIndexes(rowGroupIndexes.build());
-        Stream stream = new Stream(column, StreamKind.ROW_INDEX, slice.length(), false);
+        Stream stream = new Stream(column, dwrfSequence, StreamKind.ROW_INDEX, slice.length(), false);
 
         ImmutableList.Builder<StreamDataOutput> indexStreams = ImmutableList.builder();
         indexStreams.add(new StreamDataOutput(slice, stream));
@@ -217,7 +220,7 @@ public class StructColumnWriter
         checkState(closed);
 
         ImmutableList.Builder<StreamDataOutput> outputDataStreams = ImmutableList.builder();
-        presentStream.getStreamDataOutput(column).ifPresent(outputDataStreams::add);
+        presentStream.getStreamDataOutput(column, dwrfSequence).ifPresent(outputDataStreams::add);
         for (ColumnWriter structField : structFields) {
             outputDataStreams.addAll(structField.getDataStreams());
         }

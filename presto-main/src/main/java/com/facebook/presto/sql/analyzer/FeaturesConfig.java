@@ -81,6 +81,7 @@ public class FeaturesConfig
     private boolean spatialJoinsEnabled = true;
     private boolean fastInequalityJoins = true;
     private TaskSpillingStrategy taskSpillingStrategy = ORDER_BY_CREATE_TIME;
+    private boolean queryLimitSpillEnabled;
     private SingleStreamSpillerChoice singleStreamSpillerChoice = SingleStreamSpillerChoice.LOCAL_FILE;
     private String spillerTempStorage = "local";
     private DataSize maxRevocableMemoryPerTask = new DataSize(500, MEGABYTE);
@@ -111,6 +112,7 @@ public class FeaturesConfig
     private boolean pagesIndexEagerCompactionEnabled;
     private boolean distributedSort = true;
     private boolean optimizeJoinsWithEmptySources;
+    private boolean logFormattedQueryEnabled;
 
     private boolean dictionaryAggregation;
 
@@ -188,6 +190,10 @@ public class FeaturesConfig
     private boolean enforceFixedDistributionForOutputOperator;
     private boolean prestoSparkAssignBucketToPartitionForPartitionedTableWriteEnabled;
 
+    private boolean partialResultsEnabled;
+    private double partialResultsCompletionRatioThreshold = 0.5;
+    private double partialResultsMaxExecutionTimeMultiplier = 2.0;
+
     public enum PartitioningPrecisionStrategy
     {
         // Let Presto decide when to repartition
@@ -247,7 +253,7 @@ public class FeaturesConfig
     {
         ORDER_BY_CREATE_TIME, // When spilling is triggered, revoke tasks in order of oldest to newest
         ORDER_BY_REVOCABLE_BYTES, // When spilling is triggered, revoke tasks by most allocated revocable memory to least allocated revocable memory
-        PER_TASK_MEMORY_THRESHOLD // Spill any task after it reaches the per task memory threshold defined by experimental.spiller.max-revocable-task-memory
+        PER_TASK_MEMORY_THRESHOLD, // Spill any task after it reaches the per task memory threshold defined by experimental.spiller.max-revocable-task-memory
     }
 
     public enum SingleStreamSpillerChoice
@@ -566,6 +572,19 @@ public class FeaturesConfig
     {
         this.taskSpillingStrategy = taskSpillingStrategy;
         return this;
+    }
+
+    @Config("experimental.query-limit-spill-enabled")
+    @ConfigDescription("Spill whenever the total memory used by the query (including revocable and non-revocable memory) exceeds maxTotalMemoryPerNode")
+    public FeaturesConfig setQueryLimitSpillEnabled(boolean queryLimitSpillEnabled)
+    {
+        this.queryLimitSpillEnabled = queryLimitSpillEnabled;
+        return this;
+    }
+
+    public boolean isQueryLimitSpillEnabled()
+    {
+        return queryLimitSpillEnabled;
     }
 
     public SingleStreamSpillerChoice getSingleStreamSpillerChoice()
@@ -1549,6 +1568,19 @@ public class FeaturesConfig
         return this;
     }
 
+    public boolean isLogFormattedQueryEnabled()
+    {
+        return logFormattedQueryEnabled;
+    }
+
+    @Config("log-formatted-query-enabled")
+    @ConfigDescription("Log formatted prepared query instead of raw query when enabled")
+    public FeaturesConfig setLogFormattedQueryEnabled(boolean logFormattedQueryEnabled)
+    {
+        this.logFormattedQueryEnabled = logFormattedQueryEnabled;
+        return this;
+    }
+
     public boolean isSpoolingOutputBufferEnabled()
     {
         return spoolingOutputBufferEnabled;
@@ -1594,6 +1626,45 @@ public class FeaturesConfig
     public FeaturesConfig setPrestoSparkAssignBucketToPartitionForPartitionedTableWriteEnabled(boolean prestoSparkAssignBucketToPartitionForPartitionedTableWriteEnabled)
     {
         this.prestoSparkAssignBucketToPartitionForPartitionedTableWriteEnabled = prestoSparkAssignBucketToPartitionForPartitionedTableWriteEnabled;
+        return this;
+    }
+
+    public boolean isPartialResultsEnabled()
+    {
+        return partialResultsEnabled;
+    }
+
+    @Config("partial-results-enabled")
+    @ConfigDescription("Enable returning partial results. Please note that queries might not read all the data when this is enabled.")
+    public FeaturesConfig setPartialResultsEnabled(boolean partialResultsEnabled)
+    {
+        this.partialResultsEnabled = partialResultsEnabled;
+        return this;
+    }
+
+    public double getPartialResultsCompletionRatioThreshold()
+    {
+        return partialResultsCompletionRatioThreshold;
+    }
+
+    @Config("partial-results-completion-ratio-threshold")
+    @ConfigDescription("Minimum query completion ratio threshold for partial results")
+    public FeaturesConfig setPartialResultsCompletionRatioThreshold(double partialResultsCompletionRatioThreshold)
+    {
+        this.partialResultsCompletionRatioThreshold = partialResultsCompletionRatioThreshold;
+        return this;
+    }
+
+    public double getPartialResultsMaxExecutionTimeMultiplier()
+    {
+        return partialResultsMaxExecutionTimeMultiplier;
+    }
+
+    @Config("partial-results-max-execution-time-multiplier")
+    @ConfigDescription("This value is multiplied by the time taken to reach the completion ratio threshold and is set as max task end time")
+    public FeaturesConfig setPartialResultsMaxExecutionTimeMultiplier(double partialResultsMaxExecutionTimeMultiplier)
+    {
+        this.partialResultsMaxExecutionTimeMultiplier = partialResultsMaxExecutionTimeMultiplier;
         return this;
     }
 }

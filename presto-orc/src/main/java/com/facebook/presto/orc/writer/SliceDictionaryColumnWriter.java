@@ -15,10 +15,10 @@ package com.facebook.presto.orc.writer;
 
 import com.facebook.presto.common.block.Block;
 import com.facebook.presto.common.type.Type;
+import com.facebook.presto.orc.ColumnWriterOptions;
 import com.facebook.presto.orc.DwrfDataEncryptor;
 import com.facebook.presto.orc.OrcEncoding;
 import com.facebook.presto.orc.metadata.ColumnEncoding;
-import com.facebook.presto.orc.metadata.CompressionParameters;
 import com.facebook.presto.orc.metadata.MetadataWriter;
 import com.facebook.presto.orc.metadata.Stream;
 import com.facebook.presto.orc.metadata.statistics.ColumnStatistics;
@@ -43,7 +43,6 @@ import static com.facebook.presto.orc.stream.LongOutputStream.createLengthOutput
 import static com.google.common.base.Preconditions.checkState;
 import static io.airlift.units.DataSize.Unit.MEGABYTE;
 import static java.lang.Math.toIntExact;
-import static java.util.Objects.requireNonNull;
 
 public class SliceDictionaryColumnWriter
         extends DictionaryColumnWriter
@@ -63,17 +62,17 @@ public class SliceDictionaryColumnWriter
 
     public SliceDictionaryColumnWriter(
             int column,
+            int dwrfSequence,
             Type type,
-            CompressionParameters compressionParameters,
+            ColumnWriterOptions columnWriterOptions,
             Optional<DwrfDataEncryptor> dwrfEncryptor,
             OrcEncoding orcEncoding,
-            DataSize stringStatisticsLimit,
             MetadataWriter metadataWriter)
     {
-        super(column, type, compressionParameters, dwrfEncryptor, orcEncoding, metadataWriter);
-        this.dictionaryDataStream = new ByteArrayOutputStream(compressionParameters, dwrfEncryptor, Stream.StreamKind.DICTIONARY_DATA);
-        this.dictionaryLengthStream = createLengthOutputStream(compressionParameters, dwrfEncryptor, orcEncoding);
-        this.stringStatisticsLimitInBytes = toIntExact(requireNonNull(stringStatisticsLimit, "stringStatisticsLimit is null").toBytes());
+        super(column, dwrfSequence, type, columnWriterOptions, dwrfEncryptor, orcEncoding, metadataWriter);
+        this.dictionaryDataStream = new ByteArrayOutputStream(columnWriterOptions, dwrfEncryptor, Stream.StreamKind.DICTIONARY_DATA);
+        this.dictionaryLengthStream = createLengthOutputStream(columnWriterOptions, dwrfEncryptor, orcEncoding);
+        this.stringStatisticsLimitInBytes = toIntExact(columnWriterOptions.getStringStatisticsLimit().toBytes());
         this.statisticsBuilder = newStringStatisticsBuilder();
     }
 
@@ -255,7 +254,7 @@ public class SliceDictionaryColumnWriter
     protected ColumnWriter createDirectColumnWriter()
     {
         if (directColumnWriter == null) {
-            directColumnWriter = new SliceDirectColumnWriter(column, type, compressionParameters, dwrfEncryptor, orcEncoding, this::newStringStatisticsBuilder, metadataWriter);
+            directColumnWriter = new SliceDirectColumnWriter(column, dwrfSequence, type, columnWriterOptions, dwrfEncryptor, orcEncoding, this::newStringStatisticsBuilder, metadataWriter);
         }
         return directColumnWriter;
     }
@@ -270,6 +269,6 @@ public class SliceDictionaryColumnWriter
     @Override
     protected List<StreamDataOutput> getDictionaryStreams(int column)
     {
-        return ImmutableList.of(dictionaryLengthStream.getStreamDataOutput(column), dictionaryDataStream.getStreamDataOutput(column));
+        return ImmutableList.of(dictionaryLengthStream.getStreamDataOutput(column, dwrfSequence), dictionaryDataStream.getStreamDataOutput(column, dwrfSequence));
     }
 }

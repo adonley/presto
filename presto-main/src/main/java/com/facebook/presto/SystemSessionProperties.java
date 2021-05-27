@@ -23,6 +23,7 @@ import com.facebook.presto.memory.MemoryManagerConfig;
 import com.facebook.presto.memory.NodeMemoryConfig;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.session.PropertyMetadata;
+import com.facebook.presto.spiller.NodeSpillConfig;
 import com.facebook.presto.sql.analyzer.FeaturesConfig;
 import com.facebook.presto.sql.analyzer.FeaturesConfig.AggregationPartitioningMergingStrategy;
 import com.facebook.presto.sql.analyzer.FeaturesConfig.JoinDistributionType;
@@ -117,6 +118,7 @@ public final class SystemSessionProperties
     public static final String SPILL_ENABLED = "spill_enabled";
     public static final String JOIN_SPILL_ENABLED = "join_spill_enabled";
     public static final String AGGREGATION_OPERATOR_UNSPILL_MEMORY_LIMIT = "aggregation_operator_unspill_memory_limit";
+    public static final String TEMP_STORAGE_SPILLER_BUFFER_SIZE = "temp_storage_spiller_buffer_size";
     public static final String OPTIMIZE_DISTINCT_AGGREGATIONS = "optimize_mixed_distinct_aggregations";
     public static final String LEGACY_ROW_FIELD_ORDINAL_ACCESS = "legacy_row_field_ordinal_access";
     public static final String LEGACY_MAP_SUBSCRIPT = "do_not_use_legacy_map_subscript";
@@ -179,12 +181,26 @@ public final class SystemSessionProperties
     public static final String OPTIMIZE_JOINS_WITH_EMPTY_SOURCES = "optimize_joins_with_empty_sources";
     public static final String SPOOLING_OUTPUT_BUFFER_ENABLED = "spooling_output_buffer_enabled";
     public static final String SPARK_ASSIGN_BUCKET_TO_PARTITION_FOR_PARTITIONED_TABLE_WRITE_ENABLED = "spark_assign_bucket_to_partition_for_partitioned_table_write_enabled";
+    public static final String LOG_FORMATTED_QUERY_ENABLED = "log_formatted_query_enabled";
+    public static final String QUERY_RETRY_LIMIT = "query_retry_limit";
+    public static final String QUERY_RETRY_MAX_EXECUTION_TIME = "query_retry_max_execution_time";
+    public static final String PARTIAL_RESULTS_ENABLED = "partial_results_enabled";
+    public static final String PARTIAL_RESULTS_COMPLETION_RATIO_THRESHOLD = "partial_results_completion_ratio_threshold";
+    public static final String PARTIAL_RESULTS_MAX_EXECUTION_TIME_MULTIPLIER = "partial_results_max_execution_time_multiplier";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
     public SystemSessionProperties()
     {
-        this(new QueryManagerConfig(), new TaskManagerConfig(), new MemoryManagerConfig(), new FeaturesConfig(), new NodeMemoryConfig(), new WarningCollectorConfig(), new NodeSchedulerConfig());
+        this(
+                new QueryManagerConfig(),
+                new TaskManagerConfig(),
+                new MemoryManagerConfig(),
+                new FeaturesConfig(),
+                new NodeMemoryConfig(),
+                new WarningCollectorConfig(),
+                new NodeSchedulerConfig(),
+                new NodeSpillConfig());
     }
 
     @Inject
@@ -195,7 +211,8 @@ public final class SystemSessionProperties
             FeaturesConfig featuresConfig,
             NodeMemoryConfig nodeMemoryConfig,
             WarningCollectorConfig warningCollectorConfig,
-            NodeSchedulerConfig nodeSchedulerConfig)
+            NodeSchedulerConfig nodeSchedulerConfig,
+            NodeSpillConfig nodeSpillConfig)
     {
         sessionProperties = ImmutableList.of(
                 stringProperty(
@@ -580,6 +597,15 @@ public final class SystemSessionProperties
                         false,
                         value -> DataSize.valueOf((String) value),
                         DataSize::toString),
+                new PropertyMetadata<>(
+                        TEMP_STORAGE_SPILLER_BUFFER_SIZE,
+                        "Experimental: Buffer size used by TempStorageSingleStreamSpiller",
+                        VARCHAR,
+                        DataSize.class,
+                        nodeSpillConfig.getTempStorageBufferSize(),
+                        false,
+                        value -> DataSize.valueOf((String) value),
+                        DataSize::toString),
                 booleanProperty(
                         OPTIMIZE_DISTINCT_AGGREGATIONS,
                         "Optimize mixed non-distinct and distinct aggregations",
@@ -938,7 +964,45 @@ public final class SystemSessionProperties
                         SPARK_ASSIGN_BUCKET_TO_PARTITION_FOR_PARTITIONED_TABLE_WRITE_ENABLED,
                         "Assign bucket to partition map for partitioned table write when adding an exchange",
                         featuresConfig.isPrestoSparkAssignBucketToPartitionForPartitionedTableWriteEnabled(),
-                        true));
+                        true),
+                booleanProperty(
+                        LOG_FORMATTED_QUERY_ENABLED,
+                        "Log formatted prepared query instead of raw query when enabled",
+                        featuresConfig.isLogFormattedQueryEnabled(),
+                        false),
+                new PropertyMetadata<>(
+                        QUERY_RETRY_LIMIT,
+                        "Query retry limit due to communication failures",
+                        INTEGER,
+                        Integer.class,
+                        queryManagerConfig.getPerQueryRetryLimit(),
+                        true,
+                        value -> validateIntegerValue(value, QUERY_RETRY_LIMIT, 0, false),
+                        object -> object),
+                new PropertyMetadata<>(
+                        QUERY_RETRY_MAX_EXECUTION_TIME,
+                        "Maximum execution time of a query allowed for retry",
+                        VARCHAR,
+                        Duration.class,
+                        queryManagerConfig.getPerQueryRetryMaxExecutionTime(),
+                        true,
+                        value -> Duration.valueOf((String) value),
+                        Duration::toString),
+                booleanProperty(
+                        PARTIAL_RESULTS_ENABLED,
+                        "Enable returning partial results. Please note that queries might not read all the data when this is enabled",
+                        featuresConfig.isPartialResultsEnabled(),
+                        false),
+                doubleProperty(
+                        PARTIAL_RESULTS_COMPLETION_RATIO_THRESHOLD,
+                        "Minimum query completion ratio threshold for partial results",
+                        featuresConfig.getPartialResultsCompletionRatioThreshold(),
+                        false),
+                doubleProperty(
+                        PARTIAL_RESULTS_MAX_EXECUTION_TIME_MULTIPLIER,
+                        "This value is multiplied by the time taken to reach the completion ratio threshold and is set as max task end time",
+                        featuresConfig.getPartialResultsMaxExecutionTimeMultiplier(),
+                        false));
     }
 
     public static boolean isEmptyJoinOptimization(Session session)
@@ -1255,6 +1319,13 @@ public final class SystemSessionProperties
         DataSize memoryLimitForMerge = session.getSystemProperty(AGGREGATION_OPERATOR_UNSPILL_MEMORY_LIMIT, DataSize.class);
         checkArgument(memoryLimitForMerge.toBytes() >= 0, "%s must be positive", AGGREGATION_OPERATOR_UNSPILL_MEMORY_LIMIT);
         return memoryLimitForMerge;
+    }
+
+    public static DataSize getTempStorageSpillerBufferSize(Session session)
+    {
+        DataSize tempStorageSpillerBufferSize = session.getSystemProperty(TEMP_STORAGE_SPILLER_BUFFER_SIZE, DataSize.class);
+        checkArgument(tempStorageSpillerBufferSize.toBytes() >= 0, "%s must be positive", TEMP_STORAGE_SPILLER_BUFFER_SIZE);
+        return tempStorageSpillerBufferSize;
     }
 
     public static boolean isOptimizeDistinctAggregationEnabled(Session session)
@@ -1588,5 +1659,35 @@ public final class SystemSessionProperties
     public static boolean isPrestoSparkAssignBucketToPartitionForPartitionedTableWriteEnabled(Session session)
     {
         return session.getSystemProperty(SPARK_ASSIGN_BUCKET_TO_PARTITION_FOR_PARTITIONED_TABLE_WRITE_ENABLED, Boolean.class);
+    }
+
+    public static boolean isLogFormattedQueryEnabled(Session session)
+    {
+        return session.getSystemProperty(LOG_FORMATTED_QUERY_ENABLED, Boolean.class);
+    }
+
+    public static int getQueryRetryLimit(Session session)
+    {
+        return session.getSystemProperty(QUERY_RETRY_LIMIT, Integer.class);
+    }
+
+    public static Duration getQueryRetryMaxExecutionTime(Session session)
+    {
+        return session.getSystemProperty(QUERY_RETRY_MAX_EXECUTION_TIME, Duration.class);
+    }
+
+    public static boolean isPartialResultsEnabled(Session session)
+    {
+        return session.getSystemProperty(PARTIAL_RESULTS_ENABLED, Boolean.class);
+    }
+
+    public static double getPartialResultsCompletionRatioThreshold(Session session)
+    {
+        return session.getSystemProperty(PARTIAL_RESULTS_COMPLETION_RATIO_THRESHOLD, Double.class);
+    }
+
+    public static double getPartialResultsMaxExecutionTimeMultiplier(Session session)
+    {
+        return session.getSystemProperty(PARTIAL_RESULTS_MAX_EXECUTION_TIME_MULTIPLIER, Double.class);
     }
 }

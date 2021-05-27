@@ -23,12 +23,14 @@ import com.facebook.presto.operator.TaskContext;
 import com.facebook.presto.spi.QueryId;
 import com.facebook.presto.spiller.SpillSpaceTracker;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import io.airlift.units.DataSize;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -366,6 +368,11 @@ public class QueryContext
         return taskContext;
     }
 
+    public Collection<TaskContext> getAllTaskContexts()
+    {
+        return ImmutableList.copyOf(taskContexts.values());
+    }
+
     public QueryId getQueryId()
     {
         return queryId;
@@ -384,6 +391,11 @@ public class QueryContext
     public synchronized long getPeakNodeTotalMemory()
     {
         return peakNodeTotalMemory;
+    }
+
+    public synchronized void setPeakNodeTotalMemory(long peakNodeTotalMemoryInBytes)
+    {
+        this.peakNodeTotalMemory = peakNodeTotalMemoryInBytes;
     }
 
     private static class QueryMemoryReservationHandler
@@ -466,7 +478,7 @@ public class QueryContext
     }
 
     @GuardedBy("this")
-    private String getAdditionalFailureInfo(long allocated, long delta)
+    public String getAdditionalFailureInfo(long allocated, long delta)
     {
         Map<String, Long> queryAllocations = memoryPool.getTaggedMemoryAllocations(queryId);
 
