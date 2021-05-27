@@ -235,7 +235,18 @@ abstract class AbstractConnectionProperty<T>
         private Protocol loadProtocol(String protocolName)
         {
             try {
-                return Protocol.get(protocolName);
+                switch (protocolName.toLowerCase(ENGLISH)) {
+                    case "http11":
+                        return Protocol.HTTP_1_1;
+                    case "http10":
+                        return Protocol.HTTP_1_0;
+                    case "http2":
+                        return Protocol.HTTP_2;
+                    case "spdy":
+                        return Protocol.SPDY_3;
+                    default:
+                        return Protocol.get(protocolName);
+                }
             }
             catch (Throwable e) {
                 throw new IllegalArgumentException(format("Could not load OkhttpProtocol from %s", protocolName), e);
