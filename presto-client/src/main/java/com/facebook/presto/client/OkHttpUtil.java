@@ -134,13 +134,6 @@ public final class OkHttpUtil
                 .ifPresent(clientBuilder::proxy);
     }
 
-    public static void setupProtocols(OkHttpClient.Builder clientBuilder, List<Protocol> protocols)
-    {
-        if (protocols.size() > 0) {
-            clientBuilder.protocols(protocols);
-        }
-    }
-
     private static InetSocketAddress toUnresolvedAddress(HostAndPort address)
     {
         return InetSocketAddress.createUnresolved(address.getHost(), address.getPort());

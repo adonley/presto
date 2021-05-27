@@ -41,7 +41,6 @@ import static com.facebook.presto.client.OkHttpUtil.basicAuth;
 import static com.facebook.presto.client.OkHttpUtil.setupCookieJar;
 import static com.facebook.presto.client.OkHttpUtil.setupHttpProxy;
 import static com.facebook.presto.client.OkHttpUtil.setupKerberos;
-import static com.facebook.presto.client.OkHttpUtil.setupProtocols;
 import static com.facebook.presto.client.OkHttpUtil.setupSocksProxy;
 import static com.facebook.presto.client.OkHttpUtil.setupSsl;
 import static com.facebook.presto.client.OkHttpUtil.tokenAuth;
@@ -186,7 +185,11 @@ final class PrestoDriverUri
             setupCookieJar(builder);
             setupSocksProxy(builder, SOCKS_PROXY.getValue(properties));
             setupHttpProxy(builder, HTTP_PROXY.getValue(properties));
-            setupProtocols(builder, getProtocols());
+
+            List<Protocol> protocols = getProtocols();
+            if (protocols.size() > 0) {
+                builder.protocols(protocols);
+            }
 
             // TODO: fix Tempto to allow empty passwords
             String password = PASSWORD.getValue(properties).orElse("");
