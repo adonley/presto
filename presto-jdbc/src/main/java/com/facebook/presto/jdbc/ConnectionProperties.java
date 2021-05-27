@@ -16,6 +16,7 @@ package com.facebook.presto.jdbc;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.net.HostAndPort;
+import okhttp3.Protocol;
 
 import java.io.File;
 import java.util.List;
@@ -26,6 +27,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import static com.facebook.presto.jdbc.AbstractConnectionProperty.ClassListConverter.CLASS_LIST_CONVERTER;
+import static com.facebook.presto.jdbc.AbstractConnectionProperty.HttpProtocolConverter.HTTP_PROTOCOL_CONVERTER;
 import static com.facebook.presto.jdbc.AbstractConnectionProperty.StringMapConverter.STRING_MAP_CONVERTER;
 import static com.facebook.presto.jdbc.AbstractConnectionProperty.checkedPredicate;
 import static java.util.Collections.unmodifiableMap;
@@ -40,7 +42,6 @@ final class ConnectionProperties
     public static final ConnectionProperty<HostAndPort> HTTP_PROXY = new HttpProxy();
     public static final ConnectionProperty<String> APPLICATION_NAME_PREFIX = new ApplicationNamePrefix();
     public static final ConnectionProperty<Boolean> DISABLE_COMPRESSION = new DisableCompression();
-    public static final ConnectionProperty<Boolean> DISABLE_HTTP2 = new DisableHttp2();
     public static final ConnectionProperty<Boolean> SSL = new Ssl();
     public static final ConnectionProperty<String> SSL_KEY_STORE_PATH = new SslKeyStorePath();
     public static final ConnectionProperty<String> SSL_KEY_STORE_PASSWORD = new SslKeyStorePassword();
@@ -55,6 +56,7 @@ final class ConnectionProperties
     public static final ConnectionProperty<String> ACCESS_TOKEN = new AccessToken();
     public static final ConnectionProperty<Map<String, String>> EXTRA_CREDENTIALS = new ExtraCredentials();
     public static final ConnectionProperty<Map<String, String>> SESSION_PROPERTIES = new SessionProperties();
+    public static final ConnectionProperty<List<Protocol>> HTTP_PROTOCOLS = new HttpProtocols();
     public static final ConnectionProperty<List<QueryInterceptor>> QUERY_INTERCEPTORS = new QueryInterceptors();
 
     private static final Set<ConnectionProperty<?>> ALL_PROPERTIES = ImmutableSet.<ConnectionProperty<?>>builder()
@@ -64,7 +66,6 @@ final class ConnectionProperties
             .add(HTTP_PROXY)
             .add(APPLICATION_NAME_PREFIX)
             .add(DISABLE_COMPRESSION)
-            .add(DISABLE_HTTP2)
             .add(SSL)
             .add(SSL_KEY_STORE_PATH)
             .add(SSL_KEY_STORE_PASSWORD)
@@ -79,6 +80,7 @@ final class ConnectionProperties
             .add(ACCESS_TOKEN)
             .add(EXTRA_CREDENTIALS)
             .add(SESSION_PROPERTIES)
+            .add(HTTP_PROTOCOLS)
             .add(QUERY_INTERCEPTORS)
             .build();
 
@@ -169,15 +171,6 @@ final class ConnectionProperties
         public DisableCompression()
         {
             super("disableCompression", NOT_REQUIRED, ALLOWED, BOOLEAN_CONVERTER);
-        }
-    }
-
-    private static class DisableHttp2
-            extends AbstractConnectionProperty<Boolean>
-    {
-        public DisableHttp2()
-        {
-            super("disableHttp2", NOT_REQUIRED, ALLOWED, BOOLEAN_CONVERTER);
         }
     }
 
@@ -321,6 +314,15 @@ final class ConnectionProperties
         public SessionProperties()
         {
             super("sessionProperties", NOT_REQUIRED, ALLOWED, STRING_MAP_CONVERTER);
+        }
+    }
+
+    private static class HttpProtocols
+            extends AbstractConnectionProperty<List<Protocol>>
+    {
+        public HttpProtocols()
+        {
+            super("protocols", NOT_REQUIRED, ALLOWED, HTTP_PROTOCOL_CONVERTER);
         }
     }
 

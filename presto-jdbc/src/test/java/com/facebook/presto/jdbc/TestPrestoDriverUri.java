@@ -23,8 +23,8 @@ import java.sql.SQLException;
 import java.util.Properties;
 
 import static com.facebook.presto.jdbc.ConnectionProperties.DISABLE_COMPRESSION;
-import static com.facebook.presto.jdbc.ConnectionProperties.DISABLE_HTTP2;
 import static com.facebook.presto.jdbc.ConnectionProperties.EXTRA_CREDENTIALS;
+import static com.facebook.presto.jdbc.ConnectionProperties.HTTP_PROTOCOLS;
 import static com.facebook.presto.jdbc.ConnectionProperties.HTTP_PROXY;
 import static com.facebook.presto.jdbc.ConnectionProperties.QUERY_INTERCEPTORS;
 import static com.facebook.presto.jdbc.ConnectionProperties.SESSION_PROPERTIES;
@@ -179,24 +179,6 @@ public class TestPrestoDriverUri
     }
 
     @Test
-    public void testUriWithoutHttp2()
-            throws SQLException
-    {
-        PrestoDriverUri parameters = createDriverUri("presto://localhost:8080/blackhole?disableHttp2=true");
-        assertTrue(parameters.isHttp2Disabled());
-        assertEquals(parameters.getProperties().getProperty(DISABLE_HTTP2.getKey()), "true");
-    }
-
-    @Test
-    public void testUriWithHttp2()
-            throws SQLException
-    {
-        PrestoDriverUri parameters = createDriverUri("presto://localhost:8080/blackhole?disableHttp2=false");
-        assertFalse(parameters.isHttp2Disabled());
-        assertEquals(parameters.getProperties().getProperty(DISABLE_HTTP2.getKey()), "false");
-    }
-
-    @Test
     public void testUriWithoutSsl()
             throws SQLException
     {
@@ -283,6 +265,16 @@ public class TestPrestoDriverUri
         PrestoDriverUri parameters = createDriverUri("presto://localhost:8080?sessionProperties=" + sessionProperties);
         Properties properties = parameters.getProperties();
         assertEquals(properties.getProperty(SESSION_PROPERTIES.getKey()), sessionProperties);
+    }
+
+    @Test
+    public void testUriWithHttpProtocols()
+            throws SQLException
+    {
+        String protocols = "h2,http/1.1";
+        PrestoDriverUri parameters = createDriverUri("presto://localhost:8080?protocols=" + protocols);
+        Properties properties = parameters.getProperties();
+        assertEquals(properties.getProperty(HTTP_PROTOCOLS.getKey()), protocols);
     }
 
     @Test

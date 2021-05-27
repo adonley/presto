@@ -41,14 +41,15 @@ import static com.facebook.presto.client.OkHttpUtil.basicAuth;
 import static com.facebook.presto.client.OkHttpUtil.setupCookieJar;
 import static com.facebook.presto.client.OkHttpUtil.setupHttpProxy;
 import static com.facebook.presto.client.OkHttpUtil.setupKerberos;
+import static com.facebook.presto.client.OkHttpUtil.setupProtocols;
 import static com.facebook.presto.client.OkHttpUtil.setupSocksProxy;
 import static com.facebook.presto.client.OkHttpUtil.setupSsl;
 import static com.facebook.presto.client.OkHttpUtil.tokenAuth;
 import static com.facebook.presto.jdbc.ConnectionProperties.ACCESS_TOKEN;
 import static com.facebook.presto.jdbc.ConnectionProperties.APPLICATION_NAME_PREFIX;
 import static com.facebook.presto.jdbc.ConnectionProperties.DISABLE_COMPRESSION;
-import static com.facebook.presto.jdbc.ConnectionProperties.DISABLE_HTTP2;
 import static com.facebook.presto.jdbc.ConnectionProperties.EXTRA_CREDENTIALS;
+import static com.facebook.presto.jdbc.ConnectionProperties.HTTP_PROTOCOLS;
 import static com.facebook.presto.jdbc.ConnectionProperties.HTTP_PROXY;
 import static com.facebook.presto.jdbc.ConnectionProperties.KERBEROS_CONFIG_PATH;
 import static com.facebook.presto.jdbc.ConnectionProperties.KERBEROS_CREDENTIAL_CACHE_PATH;
@@ -172,10 +173,10 @@ final class PrestoDriverUri
         return DISABLE_COMPRESSION.getValue(properties).orElse(false);
     }
 
-    public boolean isHttp2Disabled()
+    public List<Protocol> getProtocols()
             throws SQLException
     {
-        return DISABLE_HTTP2.getValue(properties).orElse(false);
+        return HTTP_PROTOCOLS.getValue(properties).orElse(ImmutableList.of());
     }
 
     public void setupClient(OkHttpClient.Builder builder)
@@ -185,10 +186,7 @@ final class PrestoDriverUri
             setupCookieJar(builder);
             setupSocksProxy(builder, SOCKS_PROXY.getValue(properties));
             setupHttpProxy(builder, HTTP_PROXY.getValue(properties));
-
-            if (isHttp2Disabled()) {
-                builder.protocols(ImmutableList.of(Protocol.HTTP_1_1));
-            }
+            setupProtocols(builder, getProtocols());
 
             // TODO: fix Tempto to allow empty passwords
             String password = PASSWORD.getValue(properties).orElse("");

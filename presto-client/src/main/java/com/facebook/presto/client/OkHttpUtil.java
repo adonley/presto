@@ -22,6 +22,7 @@ import okhttp3.Credentials;
 import okhttp3.Interceptor;
 import okhttp3.JavaNetCookieJar;
 import okhttp3.OkHttpClient;
+import okhttp3.Protocol;
 import okhttp3.Response;
 
 import javax.net.ssl.KeyManager;
@@ -131,6 +132,13 @@ public final class OkHttpUtil
         proxy.map(OkHttpUtil::toUnresolvedAddress)
                 .map(address -> new Proxy(type, address))
                 .ifPresent(clientBuilder::proxy);
+    }
+
+    public static void setupProtocols(OkHttpClient.Builder clientBuilder, List<Protocol> protocols)
+    {
+        if (protocols.size() > 0) {
+            clientBuilder.protocols(protocols);
+        }
     }
 
     private static InetSocketAddress toUnresolvedAddress(HostAndPort address)
